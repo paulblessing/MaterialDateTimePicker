@@ -22,9 +22,11 @@ import android.app.Dialog;
 import android.app.DialogFragment;
 import android.content.DialogInterface;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.Bundle;
-import android.support.annotation.AttrRes;
+import android.support.annotation.ColorInt;
 import android.support.annotation.NonNull;
+import android.support.annotation.StringRes;
 import android.support.v4.content.ContextCompat;
 import android.text.format.DateUtils;
 import android.util.Log;
@@ -251,6 +253,9 @@ public class DatePickerDialog extends DialogFragment implements
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
         Log.d(TAG, "onCreateView: ");
+
+        // All options have been set at this point: round the initial selection if necessary
+        setToNearestDate(mCalendar);
 
         View view = inflater.inflate(R.layout.mdtp_date_picker_dialog, container, false);
 
@@ -502,6 +507,7 @@ public class DatePickerDialog extends DialogFragment implements
      * Set whether the picker should dismiss itself when a day is selected
      * @param autoDismiss true if the dialog should dismiss itself when a day is selected
      */
+    @SuppressWarnings("unused")
     public void autoDismiss(boolean autoDismiss) {
         mAutoDismiss = autoDismiss;
     }
@@ -526,10 +532,22 @@ public class DatePickerDialog extends DialogFragment implements
 
     /**
      * Set the accent color of this dialog
-     * @param accentColor the accent color you want
+     * @param color the accent color you want
      */
-    public void setAccentColor(int accentColor) {
-        mAccentColor = accentColor;
+    public void setAccentColor(String color) {
+        try {
+            mAccentColor = Color.parseColor(color);
+        } catch(IllegalArgumentException e) {
+            throw e;
+        }
+    }
+
+    /**
+     * Set the accent color of this dialog
+     * @param color the accent color you want
+     */
+    public void setAccentColor(@ColorInt int color) {
+        mAccentColor = Color.argb(255, Color.red(color), Color.green(color), Color.blue(color));;
     }
 
     /**
@@ -679,7 +697,7 @@ public class DatePickerDialog extends DialogFragment implements
      * @param okResid A resource ID to be used as the Ok button label
      */
     @SuppressWarnings("unused")
-    public void setOkText(@AttrRes int okResid) {
+    public void setOkText(@StringRes int okResid) {
         mOkString = null;
         mOkResid = okResid;
     }
@@ -698,7 +716,7 @@ public class DatePickerDialog extends DialogFragment implements
      * @param cancelResid A resource ID to be used as the Cancel button label
      */
     @SuppressWarnings("unused")
-    public void setCancelText(@AttrRes int cancelResid) {
+    public void setCancelText(@StringRes int cancelResid) {
         mCancelString = null;
         mCancelResid = cancelResid;
     }
@@ -774,15 +792,37 @@ public class DatePickerDialog extends DialogFragment implements
     }
 
     @Override
+    public Calendar getStartDate() {
+        if (selectableDays != null) return selectableDays[0];
+        if (mMinDate != null) return mMinDate;
+        Calendar output = Calendar.getInstance();
+        output.set(Calendar.YEAR, mMinYear);
+        output.set(Calendar.DAY_OF_MONTH, 1);
+        output.set(Calendar.MONTH, Calendar.JANUARY);
+        return output;
+    }
+
+    @Override
+    public Calendar getEndDate() {
+        if (selectableDays != null) return selectableDays[selectableDays.length-1];
+        if (mMaxDate != null) return mMaxDate;
+        Calendar output = Calendar.getInstance();
+        output.set(Calendar.YEAR, mMaxYear);
+        output.set(Calendar.DAY_OF_MONTH, 31);
+        output.set(Calendar.MONTH, Calendar.DECEMBER);
+        return output;
+    }
+
+    @Override
     public int getMinYear() {
-        if(selectableDays != null) return selectableDays[0].get(Calendar.YEAR);
+        if (selectableDays != null) return selectableDays[0].get(Calendar.YEAR);
         // Ensure no years can be selected outside of the given minimum date
         return mMinDate != null && mMinDate.get(Calendar.YEAR) > mMinYear ? mMinDate.get(Calendar.YEAR) : mMinYear;
     }
 
     @Override
     public int getMaxYear() {
-        if(selectableDays != null) return selectableDays[selectableDays.length-1].get(Calendar.YEAR);
+        if (selectableDays != null) return selectableDays[selectableDays.length-1].get(Calendar.YEAR);
         // Ensure no years can be selected outside of the given maximum date
         return mMaxDate != null && mMaxDate.get(Calendar.YEAR) < mMaxYear ? mMaxDate.get(Calendar.YEAR) : mMaxYear;
     }
@@ -896,15 +936,17 @@ public class DatePickerDialog extends DialogFragment implements
 
     private void setToNearestDate(Calendar calendar) {
         if(selectableDays != null) {
-            int distance = Integer.MAX_VALUE;
+            long distance = Long.MAX_VALUE;
+            Calendar currentBest = calendar;
             for (Calendar c : selectableDays) {
-                int newDistance = Math.abs(calendar.compareTo(c));
-                if(newDistance < distance) distance = newDistance;
-                else {
-                    calendar.setTimeInMillis(c.getTimeInMillis());
-                    break;
+                long newDistance = Math.abs(calendar.getTimeInMillis() - c.getTimeInMillis());
+                if(newDistance < distance) {
+                    distance = newDistance;
+                    currentBest = c;
                 }
+                else break;
             }
+            calendar.setTimeInMillis(currentBest.getTimeInMillis());
             return;
         }
 
